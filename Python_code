@@ -1,0 +1,67 @@
+import machine
+import dht
+import time
+import network
+import urequests
+
+# Configuration
+SSID = "Wokwi-GUEST"
+PASSWORD = ""
+PHONE = "+91**********"
+APIKEY = "pJh1CfMWkfLJ"
+TEMP_LIMIT = 23
+
+# Pin Setup
+pin_number = 15
+dht_pin = machine.Pin(pin_number)
+sensor = dht.DHT22(dht_pin)
+
+# WiFi Connection
+wifi = network.WLAN(network.STA_IF)
+wifi.active(True)
+wifi.connect(SSID, PASSWORD)
+
+print("Connecting to WiFi...")
+while not wifi.isconnected():
+    time.sleep(1)
+    print(".", end="")
+
+print("\nWiFi connected!")
+print("IP Address:", wifi.ifconfig()[0])
+
+def send_whatsapp(message):
+    # Constructing the URL with encoded message
+    # Replacing spaces with + or %20 for simple URL encoding
+    encoded_msg = message.replace(" ", "+")
+    url = f"http://api.textmebot.com/send.php?recipient={PHONE}&apikey={APIKEY}&text={encoded_msg}"
+    
+    try:
+        print("Sending alert...")
+        response = urequests.get(url)
+        print("Response:", response.text)
+        response.close() # Always close the connection in MicroPython
+    except Exception as e:
+        print("Error sending WhatsApp:", e)
+
+while True:
+    try:
+        # Trigger sensor reading
+        sensor.measure()
+        temp = sensor.temperature()
+        hum = sensor.humidity()
+
+        print(f"Temp: {temp}°C | Humidity: {hum}%")
+
+        if temp > TEMP_LIMIT:
+            alert_text = f"ALERT! Room temperature is HIGH: {temp}C"
+            send_whatsapp(alert_text)
+            
+            # Wait 15 minutes before sending another alert to avoid spam
+            print("Alert sent. Cooling down for 15 minutes...")
+            time.sleep(900) 
+
+    except OSError as e:
+        print("Failed to read sensor:", e)
+
+    # Short delay between regular readings
+    time.sleep(5)
